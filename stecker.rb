@@ -1,4 +1,5 @@
 require "json"
+require "thwait"
 
 $stdin.sync = true
 $stdout.sync = true
@@ -50,18 +51,22 @@ def run_simulations(game_state, iterations)
   width = game_state['board'][0].size
   wins = [0] * width
   threads = width.times.map do |col|
-    next if game_state['board'][0][col] != 0  # column is full
-    iterations.times do
-      sim = JSON.parse(JSON.generate(game_state)) # blah deep clone
-      make_play(sim, col)
-      loop do
-        result = check_state(sim, game_state['currentPlayer'])
-        wins[col] += 1 if result
-        break unless result.nil?
-        break unless make_random_play(sim)
+    Thread.new(col) do |col|
+      if game_state['board'][0][col] == 0  # column has space
+        iterations.times do
+          sim = JSON.parse(JSON.generate(game_state)) # blah deep clone
+          make_play(sim, col)
+          loop do
+            result = check_state(sim, game_state['currentPlayer'])
+            wins[col] += 1 if result
+            break unless result.nil?
+            break unless make_random_play(sim)
+          end
+        end
       end
     end
   end
+  ThreadsWait.all_waits(*threads)
   wins
 end
 
