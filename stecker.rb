@@ -49,7 +49,7 @@ end
 def run_simulations(game_state, iterations)
   width = game_state['board'][0].size
   wins = [0] * width
-  threads = width.times.map do |col|
+  width.times do |col|
     next if game_state['board'][0][col] != 0  # column is full
     iterations.times do
       sim = JSON.parse(JSON.generate(game_state)) # blah deep clone
