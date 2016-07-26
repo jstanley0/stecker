@@ -3,6 +3,8 @@ require "json"
 $stdin.sync = true
 $stdout.sync = true
 
+TIMEOUT = 3 # seconds
+
 # true == win; false == lose; nil == game in progress
 def check_state(game, me)
   board = game['board']
@@ -44,13 +46,14 @@ def make_random_play(game)
   make_play(game, col) if col
 end
 
-def run_simulations(game_state, iterations)
+def run_simulations(game_state)
+  game_string = JSON.generate(game_state)
   width = game_state['board'][0].size
   wins = [0] * width
-  width.times do |col|
-    next if game_state['board'][0][col] != 0  # column is full
-    prime = true
-    iterations.times do
+  iters = 0
+  start_time = Time.now
+  loop do
+    width.times.map do |col|
       sim = JSON.parse(JSON.generate(game_state)) # blah deep clone
       make_play(sim, col)
       loop do
@@ -58,12 +61,12 @@ def run_simulations(game_state, iterations)
         wins[col] += 1 if result
         break unless result.nil?
         break unless make_random_play(sim)
-        prime = false
       end
-      if prime # short-circuit instant-win
-        wins[col] = iterations
-        break
-      end
+    end
+    iters += 1
+    if Time.now - start_time > TIMEOUT
+      STDERR.puts "#{iters} iterations"
+      break
     end
   end
   wins
@@ -73,11 +76,7 @@ loop do
   game_state = JSON.parse(gets)
   break if game_state["winner"]
 
-  size = game_state['board'].size * game_state['board'][0].size
-  iters = 5_000_000 / (size * size)
-  STDERR.puts "using #{iters} iterations"
-
-  wins = run_simulations(game_state, iters)
+  wins = run_simulations(game_state)
   STDERR.puts wins.inspect
   puts wins.each_with_index.max[1]
 end
