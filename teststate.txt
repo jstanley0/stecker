@@ -1,0 +1,1 @@
+{ "board": [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,2],[2,0,0,0,0,2],[1,1,0,1,0,2],[1,2,2,1,2,1]],  "id": 1,  "players": [    {"name": "docker.insops.net/playerOne/bot:latest"},   {"name": "docker.insops.net/playerTwo/bot:latest"}  ],  "winner": null, "winReason": null,  "currentPlayer": 1}
