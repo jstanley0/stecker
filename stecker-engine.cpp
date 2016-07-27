@@ -134,7 +134,7 @@ public:
 
 void run_simulations(GameState &game, int wins[])
 {
-  int iterations = 1000000 / (game.width() * game.height());
+  int iterations = 200000 / (game.width() * game.height());
   fprintf(stderr, "Using %d iterations\n", iterations);
 
   for(int col = 0; col < game.width(); ++col)
