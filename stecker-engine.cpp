@@ -106,9 +106,9 @@ public:
   {
     for(int j = 0; j < cols; ++j)
     {
-      GameState countersim(*this);
-      if (!countersim.column_full(j))
+      if (!column_full(j))
       {
+        GameState countersim(*this);
         char turn = to_play;
         countersim.make_play(j);
         if (countersim.check_state(j) == turn)
@@ -185,7 +185,7 @@ void *column_thread(void *param)
 
 void run_simulations(GameState &game, int wins[])
 {
-  int iterations = 250000 / (game.width() * game.height());
+  int iterations = 350000 / (game.width() * game.height());
   fprintf(stderr, "Using %d iterations\n", iterations);
 
   StateInfo thread_states[MAX_WIDTH];
