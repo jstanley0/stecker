@@ -53,11 +53,16 @@ public:
     return cell(0, col) != '0';
   }
 
-  int check_state()
+  int check_state(int play_column)
   {
+    int col0 = play_column - 3;
+    if (col0 < 0) col0 = 0;
+    int col1 = play_column + 3;
+    if (col1 > cols) col1 = cols;
+
     for(int row = 0; row < rows; ++row)
     {
-      for(int col = 0; col < cols; ++col)
+      for(int col = col0; col < col1; ++col)
       {
         char c = cell(row, col);
         if (c != '0')
@@ -106,7 +111,7 @@ public:
       {
         char turn = to_play;
         countersim.make_play(j);
-        if (countersim.check_state() == turn)
+        if (countersim.check_state(j) == turn)
           return j;
       }
     }
@@ -151,7 +156,7 @@ void run_simulations(GameState &game, int wins[])
       // and avoid the play if it opens an immediate loss
       if (i == 0)
       {
-        if (sim.check_state() == '+')
+        if (sim.check_state(col) == '+')
         {
           wins[col] = iterations;
           break;
@@ -164,7 +169,7 @@ void run_simulations(GameState &game, int wins[])
 
       for(;;)
       {
-        char result = sim.check_state();
+        char result = sim.check_state(col);
         if (result == '+')
           ++wins[col];
         if (result != '0')
