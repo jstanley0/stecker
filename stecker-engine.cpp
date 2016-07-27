@@ -4,9 +4,10 @@
 #include <string.h>
 #include <time.h>
 #include <iostream>
+#include <string>
 
 #define MAX_WIDTH 16
-#define MAX_BOARD_SIZE (MAX_WIDTH * MAX_WIDTH + 1)
+#define MAX_BOARD_SIZE (MAX_WIDTH * MAX_WIDTH)
 
 class GameState
 {
@@ -14,8 +15,27 @@ class GameState
   char to_play;
   char board[MAX_BOARD_SIZE];
 
+  int run_length(char c, int row, int col, int dr, int dc)
+  {
+    int length = 0;
+    while(cell(row, col) == c)
+    {
+      if (++length == 3)
+        break;
+
+      row += dr;
+      if (row < 0 || row >= rows)
+        break;
+
+      col += dc;
+      if (col < 0 || col >= cols)
+        break;
+    }
+    return length;
+  }
+
 public:
-  GameState() : rows(0), cols(0), to_play('+') {}
+  GameState() : rows(0), cols(0), to_play('0') {}
   explicit GameState(const GameState& rhs) :
     rows(rhs.rows), cols(rhs.cols), to_play(rhs.to_play)
   {
@@ -24,22 +44,47 @@ public:
 
   inline int width() { return cols; }
   inline int height() { return rows; }
+  inline char turn() { return to_play; }
 
+  // protocol (newline separated)
+  // player # 1 or 2; 0 means exit (game over)
+  // height
+  // width
+  // board (`height` lines of width `width` containing '0', '1', and '2')
+  // the column to play in is returned
   bool read()
   {
-    char buf[3];
-    fgets(buf, 3, stdin);
-    rows = atoi(buf);
-    fgets(buf, 3, stdin);
-    cols = atoi(buf);
-    if (cols > MAX_WIDTH || rows * cols > MAX_BOARD_SIZE)
-    {
-      fprintf(stderr, "Board too large\n");
+    std::string line;
+    std::getline(std::cin, line);
+    to_play = line[0];
+    if (to_play == '0')
+      return false;
+
+    std::getline(std::cin, line);
+    rows = atoi(line.c_str());
+
+    std::getline(std::cin, line);
+    cols = atoi(line.c_str());
+
+    if (cols > MAX_WIDTH || rows * cols > MAX_BOARD_SIZE) {
+      std::cerr << "Board too large\n";
       exit(1);
     }
     if (rows * cols == 0)
       return false;
-    fgets(board, rows * cols + 1, stdin);
+
+    char *row_data = &board[0];
+    for(int row = 0; row < rows; ++row)
+    {
+      std::getline(std::cin, line);
+      if (line.size() != cols) {
+        std::cerr << "Invalid line length" << std::endl;
+        exit(1);
+      }
+      memcpy(row_data, line.c_str(), cols);
+      row_data += cols;
+    }
+
     return true;
   }
 
@@ -48,43 +93,38 @@ public:
     return board[row * cols + col];
   }
 
-  bool column_full(int col)
+  inline bool column_full(int col)
   {
     return cell(0, col) != '0';
   }
 
-  int check_state(int play_column)
+  // test whether the piece just played forms a win
+  // return the player name ('1' or '2') or '0' otherwise
+  char check_state(int play_row, int play_col)
   {
-    int col0 = play_column - 3;
-    if (col0 < 0) col0 = 0;
-    int col1 = play_column + 3;
-    if (col1 > cols) col1 = cols;
-
-    for(int row = 0; row < rows; ++row)
+    char c = cell(play_row, play_col);
+    if (c != '0')
     {
-      for(int col = col0; col < col1; ++col)
-      {
-        char c = cell(row, col);
-        if (c != '0')
-        {
-          // horizontal
-          if (col <= cols - 4 && cell(row, col + 1) == c && cell(row, col + 2) == c && cell(row, col + 3) == c)
-            return c;
-          // vertical
-          if (row <= rows - 4 && cell(row + 1, col) == c && cell(row + 2, col) == c && cell(row + 3, col) == c)
-            return c;
-          // slash
-          if (col >= 3 && row <= rows - 4 && cell(row + 1, col - 1) == c && cell(row + 2, col - 2) == c && cell(row + 3, col - 3) == c)
-            return c;
-          // backslash
-          if (col <= cols - 4 && row <= rows - 4 && cell(row + 1, col + 1) == c && cell(row + 2, col + 2) == c && cell(row + 3, col + 3) == c)
-            return c;
-        }
-      }
+      // horizontal
+      if (1 + run_length(c, play_row, play_col - 1, 0, -1) + run_length(c, play_row, play_col + 1, 0, 1) >= 4)
+        return c;
+
+      // vertical
+      if (1 + run_length(c, play_row - 1, play_col, -1, 0) + run_length(c, play_row + 1, play_col, 1, 0) >= 4)
+        return c;
+
+      // slash
+      if (1 + run_length(c, play_row - 1, play_col + 1, -1, 1) + run_length(c, play_row + 1, play_col - 1, 1, -1) >= 4)
+        return c;
+
+      // backslash
+      if (1 + run_length(c, play_row - 1, play_col - 1, -1, -1) + run_length(c, play_row + 1, play_col + 1, 1, 1) >= 4)
+        return c;
     }
     return '0';
   }
 
+  // returns the row the piece landed in
   int make_play(int col)
   {
     int row = rows - 1;
@@ -93,138 +133,52 @@ public:
       if (cell(row, col) == '0')
       {
         cell(row, col) = to_play;
-        to_play = (to_play == '+') ? '-' : '+';
-        return col;
+        to_play = (to_play == '1') ? '2' : '1';
+        return row;
       }
       --row;
     }
-    fprintf(stderr, "Invalid move attempted. :(\n");
+    std::cerr << "Invalid move attempted. :(\n";
     exit(1);
   }
 
-  int find_winning_play()
+  // populates moves; returns number of moves
+  int legal_moves(int moves[MAX_WIDTH])
   {
-    for(int j = 0; j < cols; ++j)
-    {
-      if (!column_full(j))
-      {
-        GameState countersim(*this);
-        char turn = to_play;
-        countersim.make_play(j);
-        if (countersim.check_state(j) == turn)
-          return j;
-      }
-    }
-    return -1;
-  }
-
-  int make_randomish_play()
-  {
-    // if there is a winning move here, make it.
-    int col = find_winning_play();
-    if (col >= 0)
-      return make_play(col);
-
-    // otherwise play randomly
-    int legal_moves[MAX_WIDTH];
     int count = 0;
     for(int i = 0; i < cols; ++i)
       if (!column_full(i))
-        legal_moves[count++] = i;
+        moves[count++] = i;
+    return count;
+  }
+
+  int random_move()
+  {
+    int moves[MAX_WIDTH];
+    int count = legal_moves(moves);
     if (count == 0)
-      return 0;
-    return make_play(legal_moves[rand() % count]);
+      return -1;
+    return moves[rand() % count];
   }
 };
 
-struct StateInfo
-{
-  GameState *game;
-  int col;
-  int iterations;
-  int *wins;
-  pthread_t thread;
-};
-
-void *column_thread(void *param)
-{
-  StateInfo *info = (StateInfo *)param;
-  for(int i = 0; i < info->iterations; ++i)
-  {
-    GameState sim(*(info->game));
-    sim.make_play(info->col);
-
-    // on the first iteration, short-circuit a win
-    // and avoid the play if it opens an immediate loss
-    if (i == 0)
-    {
-      if (sim.check_state(info->col) == '+')
-      {
-        *(info->wins) = info->iterations;
-        break;
-      }
-      else if(sim.find_winning_play() >= 0)
-      {
-        break;
-      }
-    }
-
-    for(;;)
-    {
-      char result = sim.check_state(info->col);
-      if (result == '+')
-        ++(*(info->wins));
-      if (result != '0')
-        break;
-      if (!sim.make_randomish_play())
-        break;
-    }
-  }
-  return NULL;
-}
-
-void run_simulations(GameState &game, int wins[])
-{
-  int iterations = 350000 / (game.width() * game.height());
-  fprintf(stderr, "Using %d iterations\n", iterations);
-
-  StateInfo thread_states[MAX_WIDTH];
-  for(int col = 0; col < game.width(); ++col)
-  {
-    if (game.column_full(col))
-      continue; // column full
-
-    thread_states[col].game = &game;
-    thread_states[col].col = col;
-    thread_states[col].iterations = iterations;
-    thread_states[col].wins = &wins[col];
-    pthread_create(&thread_states[col].thread, NULL, column_thread, &thread_states[col]);
-  }
-  for(int col = 0; col < game.width(); ++col)
-  {
-    pthread_join(thread_states[col].thread, NULL);
-  }
-}
-
+// test heuristic: play a winning move if there is one; otherwise play randomly
 void play(GameState &game)
 {
-  int wins[MAX_WIDTH];
-  for(int i = 0; i < MAX_WIDTH; ++i)
-    wins[i] = 0;
-  run_simulations(game, wins);
-  int max_wins = -1, win_idx = -1;
-  for(int i = 0; i < game.width(); ++i)
+  int moves[MAX_WIDTH];
+  char me = game.turn();
+  int n = game.legal_moves(moves);
+  for(int i = 0; i < n; ++i)
   {
-    fprintf(stderr, "%d ", wins[i]);
-    if (wins[i] > max_wins)
+    GameState sim(game);
+    int row = sim.make_play(moves[i]);
+    if (me == sim.check_state(row, moves[i]))
     {
-      max_wins = wins[i];
-      win_idx = i;
+      std::cout << moves[i] << std::endl;
+      return;
     }
   }
-  fprintf(stderr, "\n");
-  printf("%02d", win_idx);
-  fflush(stdout);
+  std::cout << game.random_move() << std::endl;
 }
 
 int main(int argc, char **argv)
