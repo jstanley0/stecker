@@ -19,7 +19,7 @@ public:
   explicit GameState(const GameState& rhs) :
     rows(rhs.rows), cols(rhs.cols), to_play(rhs.to_play)
   {
-    memcpy(board, rhs.board, MAX_BOARD_SIZE);
+    memcpy(board, rhs.board, rows * cols);
   }
 
   inline int width() { return cols; }
@@ -137,47 +137,72 @@ public:
   }
 };
 
+struct StateInfo
+{
+  GameState *game;
+  int col;
+  int iterations;
+  int *wins;
+  pthread_t thread;
+};
+
+void *column_thread(void *param)
+{
+  StateInfo *info = (StateInfo *)param;
+  for(int i = 0; i < info->iterations; ++i)
+  {
+    GameState sim(*(info->game));
+    sim.make_play(info->col);
+
+    // on the first iteration, short-circuit a win
+    // and avoid the play if it opens an immediate loss
+    if (i == 0)
+    {
+      if (sim.check_state(info->col) == '+')
+      {
+        *(info->wins) = info->iterations;
+        break;
+      }
+      else if(sim.find_winning_play() >= 0)
+      {
+        break;
+      }
+    }
+
+    for(;;)
+    {
+      char result = sim.check_state(info->col);
+      if (result == '+')
+        ++(*(info->wins));
+      if (result != '0')
+        break;
+      if (!sim.make_randomish_play())
+        break;
+    }
+  }
+  return NULL;
+}
+
 void run_simulations(GameState &game, int wins[])
 {
-  int iterations = 200000 / (game.width() * game.height());
+  int iterations = 500000 / (game.width() * game.height());
   fprintf(stderr, "Using %d iterations\n", iterations);
 
+  StateInfo thread_states[MAX_WIDTH];
   for(int col = 0; col < game.width(); ++col)
   {
     if (game.column_full(col))
       continue; // column full
 
-    for(int i = 0; i < iterations; ++i)
-    {
-      GameState sim(game);
-      sim.make_play(col);
-
-      // on the first iteration, short-circuit a win
-      // and avoid the play if it opens an immediate loss
-      if (i == 0)
-      {
-        if (sim.check_state(col) == '+')
-        {
-          wins[col] = iterations;
-          break;
-        }
-        else if(sim.find_winning_play() >= 0)
-        {
-          break;
-        }
-      }
-
-      for(;;)
-      {
-        char result = sim.check_state(col);
-        if (result == '+')
-          ++wins[col];
-        if (result != '0')
-          break;
-        if (!sim.make_randomish_play())
-          break;
-      }
-    }
+    thread_states[col].game = &game;
+    thread_states[col].col = col;
+    thread_states[col].iterations = iterations;
+    thread_states[col].wins = &wins[col];
+    pthread_create(&thread_states[col].thread, NULL, column_thread, &thread_states[col]);
+  }
+  for(int col = 0; col < game.width(); ++col)
+  {
+    pthread_join(thread_states[col].thread, NULL);
   }
 }
 
