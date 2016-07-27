@@ -185,7 +185,7 @@ void *column_thread(void *param)
 
 void run_simulations(GameState &game, int wins[])
 {
-  int iterations = 500000 / (game.width() * game.height());
+  int iterations = 250000 / (game.width() * game.height());
   fprintf(stderr, "Using %d iterations\n", iterations);
 
   StateInfo thread_states[MAX_WIDTH];
