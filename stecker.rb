@@ -54,6 +54,7 @@ def run_simulations(game_state)
   start_time = Time.now
   loop do
     width.times.map do |col|
+      next if game_state['board'][0][col] != 0
       sim = JSON.parse(JSON.generate(game_state)) # blah deep clone
       make_play(sim, col)
       loop do
