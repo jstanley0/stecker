@@ -10,12 +10,13 @@
 class GameState
 {
   int rows, cols;
+  char to_play;
   char board[MAX_BOARD_SIZE];
 
 public:
-  GameState() : rows(0), cols(0) {}
+  GameState() : rows(0), cols(0), to_play('+') {}
   explicit GameState(const GameState& rhs) :
-    rows(rhs.rows), cols(rhs.cols)
+    rows(rhs.rows), cols(rhs.cols), to_play(rhs.to_play)
   {
     memcpy(board, rhs.board, MAX_BOARD_SIZE);
   }
@@ -80,7 +81,8 @@ public:
     {
       if (cell(row, col) == '0')
       {
-        cell(row, col) = '+';
+        cell(row, col) = to_play;
+        to_play = (to_play == '+') ? '-' : '+';
         return col;
       }
       --row;
