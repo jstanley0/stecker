@@ -62,7 +62,7 @@ public:
 
     for(int row = 0; row < rows; ++row)
     {
-      for(int col = 0; col < cols; ++col)
+      for(int col = col0; col < col1; ++col)
       {
         char c = cell(row, col);
         if (c != '0')
