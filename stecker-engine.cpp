@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <time.h>
+#include <iostream>
 
 #define MAX_WIDTH 16
 #define MAX_BOARD_SIZE (MAX_WIDTH * MAX_WIDTH + 1)
@@ -63,20 +64,20 @@ public:
         {
           // horizontal
           if (col <= cols - 4 && cell(row, col + 1) == c && cell(row, col + 2) == c && cell(row, col + 3) == c)
-            return (c == '+') ? 1 : -1;
+            return c;
           // vertical
           if (row <= rows - 4 && cell(row + 1, col) == c && cell(row + 2, col) == c && cell(row + 3, col) == c)
-            return (c == '+') ? 1 : -1;
+            return c;
           // slash
           if (col >= 3 && row <= rows - 4 && cell(row + 1, col - 1) == c && cell(row + 2, col - 2) == c && cell(row + 3, col - 3) == c)
-            return (c == '+') ? 1 : -1;
+            return c;
           // backslash
           if (col <= cols - 4 && row <= rows - 4 && cell(row + 1, col + 1) == c && cell(row + 2, col + 2) == c && cell(row + 3, col + 3) == c)
-            return (c == '+') ? 1 : -1;
+            return c;
         }
       }
     }
-    return 0;
+    return '0';
   }
 
   int make_play(int col)
@@ -96,8 +97,30 @@ public:
     exit(1);
   }
 
-  int make_random_play()
+  int find_winning_play()
   {
+    for(int j = 0; j < cols; ++j)
+    {
+      GameState countersim(*this);
+      if (!countersim.column_full(j))
+      {
+        char turn = to_play;
+        countersim.make_play(j);
+        if (countersim.check_state() == turn)
+          return j;
+      }
+    }
+    return -1;
+  }
+
+  int make_randomish_play()
+  {
+    // if there is a winning move here, make it.
+    int col = find_winning_play();
+    if (col >= 0)
+      return make_play(col);
+
+    // otherwise play randomly
     int legal_moves[MAX_WIDTH];
     int count = 0;
     for(int i = 0; i < cols; ++i)
@@ -118,37 +141,35 @@ void run_simulations(GameState &game, int wins[])
   {
     if (game.column_full(col))
       continue; // column full
+
     for(int i = 0; i < iterations; ++i)
     {
       GameState sim(game);
       sim.make_play(col);
 
-      // stop here if this play opens a win for the opponent
-      bool losing_play = false;
-      for(int i = 0; i < game.width(); ++i)
+      // on the first iteration, short-circuit a win
+      // and avoid the play if it opens an immediate loss
+      if (i == 0)
       {
-        GameState countersim(sim);
-        if (!countersim.column_full(i))
+        if (sim.check_state() == '+')
         {
-          countersim.make_play(i);
-          if (countersim.check_state() < 0)
-          {
-            losing_play = true;
-            break;
-          }
+          wins[col] = iterations;
+          break;
+        }
+        else if(sim.find_winning_play() >= 0)
+        {
+          break;
         }
       }
-      if (losing_play)
-        break;
 
       for(;;)
       {
-        int result = sim.check_state();
-        if (result > 0)
+        char result = sim.check_state();
+        if (result == '+')
           ++wins[col];
-        if (result != 0)
+        if (result != '0')
           break;
-        if (!sim.make_random_play())
+        if (!sim.make_randomish_play())
           break;
       }
     }
