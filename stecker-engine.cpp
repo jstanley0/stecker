@@ -47,6 +47,11 @@ public:
     return board[row * cols + col];
   }
 
+  bool column_full(int col)
+  {
+    return cell(0, col) != '0';
+  }
+
   int check_state()
   {
     for(int row = 0; row < rows; ++row)
@@ -96,7 +101,7 @@ public:
     int legal_moves[MAX_WIDTH];
     int count = 0;
     for(int i = 0; i < cols; ++i)
-      if (cell(0, i) == '0')
+      if (!column_full(i))
         legal_moves[count++] = i;
     if (count == 0)
       return 0;
@@ -111,12 +116,31 @@ void run_simulations(GameState &game, int wins[])
 
   for(int col = 0; col < game.width(); ++col)
   {
-    if (game.cell(0, col) != '0')
+    if (game.column_full(col))
       continue; // column full
     for(int i = 0; i < iterations; ++i)
     {
       GameState sim(game);
       sim.make_play(col);
+
+      // stop here if this play opens a win for the opponent
+      bool losing_play = false;
+      for(int i = 0; i < game.width(); ++i)
+      {
+        GameState countersim(sim);
+        if (!countersim.column_full(i))
+        {
+          countersim.make_play(i);
+          if (countersim.check_state() < 0)
+          {
+            losing_play = true;
+            break;
+          }
+        }
+      }
+      if (losing_play)
+        break;
+
       for(;;)
       {
         int result = sim.check_state();
