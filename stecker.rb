@@ -18,11 +18,11 @@ IO.popen('./stecker-engine', 'a+') do |f|
       row.map { |cell|
         case cell
         when 0
-          '.'
+          '0'
         when json['currentPlayer']
-          'X'
+          '+'
         else
-          'O'
+          '-'
         end
       }.join
     }.join

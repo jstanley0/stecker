@@ -1,5 +1,6 @@
 FROM ruby:2.3-alpine
-RUN apt-get install g++
+RUN apk add --no-cache g++
 COPY ./stecker.rb /stecker.rb
-RUN gcc stecker-engine.cpp -lpthread -o /stecker-engine
+COPY ./stecker-engine.cpp /stecker-engine.cpp
+RUN g++ /stecker-engine.cpp -lpthread -o /stecker-engine
 CMD ruby /stecker.rb
