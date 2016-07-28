@@ -1,6 +1,7 @@
 FROM ruby:2.3-alpine
 RUN apk add --no-cache g++
+COPY ./make.sh /make.sh
 COPY ./stecker.rb /stecker.rb
 COPY ./stecker-engine.cpp /stecker-engine.cpp
-RUN g++ -O3 /stecker-engine.cpp -lpthread -o /stecker-engine
+RUN /make.sh
 CMD ruby /stecker.rb

@@ -6,11 +6,25 @@
 #include <iostream>
 #include <string>
 
-#define MAX_WIDTH 16
+#define MAX_WIDTH 14
 #define MAX_BOARD_SIZE (MAX_WIDTH * MAX_WIDTH)
 
-#define PLY 3
-#define TRIALS 100
+int g_Ply = 3;
+int g_Trials = 100;
+void tune_depth(int width)
+{
+  if (width <= 7)
+    g_Ply = 4;
+  else
+    g_Ply = 3;
+
+  if (width <= 10)
+    g_Trials = 100;
+  else if (width <= 12)
+    g_Trials = 75;
+  else
+    g_Trials = 50;
+}
 
 char opponent(char player)
 {
@@ -45,6 +59,12 @@ class GameState
 
 public:
   GameState() : rows(0), cols(0), to_play('0'), expected_result(-1) {}
+
+  GameState(int _rows, int _cols, char _to_play) : rows(_rows), cols(_cols), to_play(_to_play), expected_result(-1)
+  {
+    memset(board, '0', rows * cols);
+  }
+
   explicit GameState(const GameState& rhs) :
     rows(rhs.rows), cols(rhs.cols), expected_result(rhs.expected_result), to_play(rhs.to_play)
   {
@@ -197,7 +217,7 @@ public:
 };
 
 // given the state, player, and move to make, return the probability of a win
-// examine all subgames to PLY and then do TRIALS random games from each leaf
+// examine all subgames to g_Ply and then do g_Trials random games from each leaf
 double evaluate_move(const GameState &game, int move, int depth = 0)
 {
   GameState sim(game);
@@ -211,7 +231,7 @@ double evaluate_move(const GameState &game, int move, int depth = 0)
   else if (res != '0')
     return 0.0; // lose!
 
-  if (depth < PLY)
+  if (depth < g_Ply)
   {
     // find opponent's best move
     double best_prob = 0.0;
@@ -231,7 +251,7 @@ double evaluate_move(const GameState &game, int move, int depth = 0)
     // play randomly from here to the end a bunch of times
     // and return the fraction of trials we win
     int wins = 0;
-    for(int trial = 0; trial < TRIALS; ++trial)
+    for(int trial = 0; trial < g_Trials; ++trial)
     {
       GameState sub(sim);
       for(;;)
@@ -247,28 +267,48 @@ double evaluate_move(const GameState &game, int move, int depth = 0)
           break;
       }
     }
-    return (double)wins / TRIALS;
+    return (double)wins / g_Trials;
   }
+}
+
+struct ThreadState
+{
+  pthread_t thread_id;
+  const GameState *game;
+  int col;
+  double prob;
+};
+
+void *thread_proc(void *param)
+{
+  ThreadState *ts = (ThreadState *)param;
+  ts->prob = evaluate_move(*(ts->game), ts->col);
+  return NULL;
 }
 
 int play(const GameState &game)
 {
-  int best_col = -1;
-  double best_prob = 0.0;
+  ThreadState threads[MAX_WIDTH];
+  tune_depth(game.width());
   for(int col = 0; col < game.width(); ++col)
   {
+    threads[col].thread_id = 0;
+    threads[col].game = &game;
+    threads[col].col = col;
+    threads[col].prob = 0.0;
     if (game.column_full(col))
-    {
-      fprintf(stderr, "0.00 ");
       continue;
-    }
-    double prob = evaluate_move(game, col);
-    fprintf(stderr, "%1.2f ", prob);
-    if (prob > best_prob)
-    {
-      best_prob = prob;
+    pthread_create(&threads[col].thread_id, NULL, thread_proc, &threads[col]);
+  }
+
+  int best_col = 0;
+  for(int col = 0; col < game.width(); ++col)
+  {
+    if (threads[col].thread_id != 0)
+      pthread_join(threads[col].thread_id, NULL);
+    fprintf(stderr, "%1.2f ", threads[col].prob);
+    if (threads[col].prob > threads[best_col].prob)
       best_col = col;
-    }
   }
   fprintf(stderr, "\n");
   return best_col;
@@ -277,6 +317,19 @@ int play(const GameState &game)
 int main(int argc, char **argv)
 {
   srand(time(0));
+
+  if (argc >= 3 && 0 == strcmp(argv[1], "--benchmark"))
+  {
+    int size = atoi(argv[2]);
+    if (size < 4 || size > MAX_WIDTH) {
+      std::cerr << "invalid size; use --benchmark N, where 4 <= N <= " << MAX_WIDTH << std::endl;
+      return 1;
+    }
+    GameState blank(size, size, '1');
+    play(blank);
+    return 0;
+  }
+
   GameState game;
   while(game.read())
   {
@@ -284,10 +337,8 @@ int main(int argc, char **argv)
 
     int test = game.test_value();
     if (test >= 0) {
-      if (move == test) {
-        std::cerr << ".";
-      } else {
-        std::cerr << "\ntest failed: expected " << test << "; actual " << move << std::endl;
+      if (move != test) {
+        std::cerr << "test failed: expected " << test << "; actual " << move << std::endl;
         game.print(std::cerr);
       }
     }
