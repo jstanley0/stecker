@@ -198,53 +198,79 @@ public:
 
 // given the state, player, and move to make, return the probability of a win
 // examine all subgames to PLY and then do TRIALS random games from each leaf
-int evaluate_move(const GameState &game, int move, int depth = 0)
+double evaluate_move(const GameState &game, int move, int depth = 0)
 {
   GameState sim(game);
   char me = sim.turn();
+
+  // apply move and check for endgame condition
   int row = sim.make_play(move);
   char res = sim.check_state(row, move);
   if (res == me)
-    return 100; // win!
+    return 1.0; // win!
   else if (res != '0')
-    return 0;   // lose!
+    return 0.0; // lose!
 
   if (depth < PLY)
   {
-    int best_prob = 0;
+    // find opponent's best move
+    double best_prob = 0.0;
     for(int col = 0; col < sim.width(); ++col)
     {
       if (sim.column_full(col))
         continue;
-      // negating probabilities from the opponent's POV
-      // FIXME my brain is broke
-      int prob = 100 - evaluate_move(sim, col, depth + 1);
+      double prob = evaluate_move(sim, col, depth + 1);
       if (prob > best_prob)
         best_prob = prob;
     }
-    return best_prob;
+    // invert to return _my_ probability of winning
+    return 1.0 - best_prob;
   }
   else
   {
-    return 50; // TODO the Monte Carlo thang
+    // play randomly from here to the end a bunch of times
+    // and return the fraction of trials we win
+    int wins = 0;
+    for(int trial = 0; trial < TRIALS; ++trial)
+    {
+      GameState sub(sim);
+      for(;;)
+      {
+        int col = sub.random_move();
+        if (col < 0)
+          break;
+        int row = sub.make_play(col);
+        char result = sub.check_state(row, col);
+        if (result == me)
+          ++wins;
+        if (result != '0')
+          break;
+      }
+    }
+    return (double)wins / TRIALS;
   }
-
 }
 
 int play(const GameState &game)
 {
-  int best_col = -1, best_prob = -1;
+  int best_col = -1;
+  double best_prob = 0.0;
   for(int col = 0; col < game.width(); ++col)
   {
     if (game.column_full(col))
+    {
+      fprintf(stderr, "0.00 ");
       continue;
-    int prob = evaluate_move(game, col);
+    }
+    double prob = evaluate_move(game, col);
+    fprintf(stderr, "%1.2f ", prob);
     if (prob > best_prob)
     {
       best_prob = prob;
       best_col = col;
     }
   }
+  fprintf(stderr, "\n");
   return best_col;
 }
 
