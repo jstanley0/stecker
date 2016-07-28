@@ -295,7 +295,7 @@ int play(const GameState &game)
     threads[col].thread_id = 0;
     threads[col].game = &game;
     threads[col].col = col;
-    threads[col].prob = 0.0;
+    threads[col].prob = -1.0;
     if (game.column_full(col))
       continue;
     pthread_create(&threads[col].thread_id, NULL, thread_proc, &threads[col]);
