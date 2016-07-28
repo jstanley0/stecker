@@ -12,6 +12,7 @@
 class GameState
 {
   int rows, cols;
+  int expected_result;
   char to_play;
   char board[MAX_BOARD_SIZE];
 
@@ -35,9 +36,9 @@ class GameState
   }
 
 public:
-  GameState() : rows(0), cols(0), to_play('0') {}
+  GameState() : rows(0), cols(0), to_play('0'), expected_result(-1) {}
   explicit GameState(const GameState& rhs) :
-    rows(rhs.rows), cols(rhs.cols), to_play(rhs.to_play)
+    rows(rhs.rows), cols(rhs.cols), expected_result(rhs.expected_result), to_play(rhs.to_play)
   {
     memcpy(board, rhs.board, rows * cols);
   }
@@ -45,8 +46,10 @@ public:
   inline int width() { return cols; }
   inline int height() { return rows; }
   inline char turn() { return to_play; }
+  inline int test_value() { return expected_result; }
 
   // protocol (newline separated)
+  // [optional] !test_result (expected column to play in)
   // player # 1 or 2; 0 means exit (game over)
   // height
   // width
@@ -56,6 +59,11 @@ public:
   {
     std::string line;
     std::getline(std::cin, line);
+    if (line[0] == '!')
+    {
+      expected_result = atoi(line.c_str() + 1);
+      std::getline(std::cin, line);
+    }
     to_play = line[0];
     if (to_play == '0')
       return false;
@@ -78,7 +86,7 @@ public:
     {
       std::getline(std::cin, line);
       if (line.size() != cols) {
-        std::cerr << "Invalid line length" << std::endl;
+        std::cerr << "Invalid line length: expected " << cols << "columns:\n" << line << std::endl;
         exit(1);
       }
       memcpy(row_data, line.c_str(), cols);
@@ -160,10 +168,23 @@ public:
       return -1;
     return moves[rand() % count];
   }
+
+  void print(std::ostream &str)
+  {
+    str << "to play: " << to_play << '\n';
+    for(int i = 0; i < rows; ++i)
+    {
+      for(int j = 0; j < cols; ++j)
+      {
+        str << cell(i, j);
+      }
+      str << '\n';
+    }
+  }
 };
 
 // test heuristic: play a winning move if there is one; otherwise play randomly
-void play(GameState &game)
+int play(GameState &game)
 {
   int moves[MAX_WIDTH];
   char me = game.turn();
@@ -174,11 +195,10 @@ void play(GameState &game)
     int row = sim.make_play(moves[i]);
     if (me == sim.check_state(row, moves[i]))
     {
-      std::cout << moves[i] << std::endl;
-      return;
+      return moves[i];
     }
   }
-  std::cout << game.random_move() << std::endl;
+  return game.random_move();
 }
 
 int main(int argc, char **argv)
@@ -187,7 +207,19 @@ int main(int argc, char **argv)
   GameState game;
   while(game.read())
   {
-    play(game);
+    int move = play(game);
+
+    int test = game.test_value();
+    if (test >= 0) {
+      if (move == test) {
+        std::cerr << ".";
+      } else {
+        std::cerr << "\ntest failed: expected " << test << "; actual " << move << std::endl;
+        game.print(std::cerr);
+      }
+    }
+
+    std::cout << move << std::endl;
   }
   return 0;
 }
