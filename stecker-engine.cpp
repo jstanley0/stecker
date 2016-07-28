@@ -9,6 +9,14 @@
 #define MAX_WIDTH 16
 #define MAX_BOARD_SIZE (MAX_WIDTH * MAX_WIDTH)
 
+#define PLY 3
+#define TRIALS 100
+
+char opponent(char player)
+{
+  return (player == '1') ? '2' : '1';
+}
+
 class GameState
 {
   int rows, cols;
@@ -16,7 +24,7 @@ class GameState
   char to_play;
   char board[MAX_BOARD_SIZE];
 
-  int run_length(char c, int row, int col, int dr, int dc)
+  int run_length(char c, int row, int col, int dr, int dc) const
   {
     int length = 0;
     while(cell(row, col) == c)
@@ -43,10 +51,10 @@ public:
     memcpy(board, rhs.board, rows * cols);
   }
 
-  inline int width() { return cols; }
-  inline int height() { return rows; }
-  inline char turn() { return to_play; }
-  inline int test_value() { return expected_result; }
+  inline int width() const { return cols; }
+  inline int height() const { return rows; }
+  inline char turn() const { return to_play; }
+  inline int test_value() const { return expected_result; }
 
   // protocol (newline separated)
   // [optional] !test_result (expected column to play in)
@@ -96,19 +104,24 @@ public:
     return true;
   }
 
+  inline char cell(int row, int col) const
+  {
+    return board[row * cols + col];
+  }
+
   inline char &cell(int row, int col)
   {
     return board[row * cols + col];
   }
 
-  inline bool column_full(int col)
+  inline bool column_full(int col) const
   {
     return cell(0, col) != '0';
   }
 
   // test whether the piece just played forms a win
   // return the player name ('1' or '2') or '0' otherwise
-  char check_state(int play_row, int play_col)
+  char check_state(int play_row, int play_col) const
   {
     char c = cell(play_row, play_col);
     if (c != '0')
@@ -141,7 +154,7 @@ public:
       if (cell(row, col) == '0')
       {
         cell(row, col) = to_play;
-        to_play = (to_play == '1') ? '2' : '1';
+        to_play = opponent(to_play);
         return row;
       }
       --row;
@@ -151,7 +164,7 @@ public:
   }
 
   // populates moves; returns number of moves
-  int legal_moves(int moves[MAX_WIDTH])
+  int legal_moves(int moves[MAX_WIDTH]) const
   {
     int count = 0;
     for(int i = 0; i < cols; ++i)
@@ -160,7 +173,7 @@ public:
     return count;
   }
 
-  int random_move()
+  int random_move() const
   {
     int moves[MAX_WIDTH];
     int count = legal_moves(moves);
@@ -169,7 +182,7 @@ public:
     return moves[rand() % count];
   }
 
-  void print(std::ostream &str)
+  void print(std::ostream &str) const
   {
     str << "to play: " << to_play << '\n';
     for(int i = 0; i < rows; ++i)
@@ -183,22 +196,56 @@ public:
   }
 };
 
-// test heuristic: play a winning move if there is one; otherwise play randomly
-int play(GameState &game)
+// given the state, player, and move to make, return the probability of a win
+// examine all subgames to PLY and then do TRIALS random games from each leaf
+int evaluate_move(const GameState &game, int move, int depth = 0)
 {
-  int moves[MAX_WIDTH];
-  char me = game.turn();
-  int n = game.legal_moves(moves);
-  for(int i = 0; i < n; ++i)
+  GameState sim(game);
+  char me = sim.turn();
+  int row = sim.make_play(move);
+  char res = sim.check_state(row, move);
+  if (res == me)
+    return 100; // win!
+  else if (res != '0')
+    return 0;   // lose!
+
+  if (depth < PLY)
   {
-    GameState sim(game);
-    int row = sim.make_play(moves[i]);
-    if (me == sim.check_state(row, moves[i]))
+    int best_prob = 0;
+    for(int col = 0; col < sim.width(); ++col)
     {
-      return moves[i];
+      if (sim.column_full(col))
+        continue;
+      // negating probabilities from the opponent's POV
+      // FIXME my brain is broke
+      int prob = 100 - evaluate_move(sim, col, depth + 1);
+      if (prob > best_prob)
+        best_prob = prob;
+    }
+    return best_prob;
+  }
+  else
+  {
+    return 50; // TODO the Monte Carlo thang
+  }
+
+}
+
+int play(const GameState &game)
+{
+  int best_col = -1, best_prob = -1;
+  for(int col = 0; col < game.width(); ++col)
+  {
+    if (game.column_full(col))
+      continue;
+    int prob = evaluate_move(game, col);
+    if (prob > best_prob)
+    {
+      best_prob = prob;
+      best_col = col;
     }
   }
-  return game.random_move();
+  return best_col;
 }
 
 int main(int argc, char **argv)
