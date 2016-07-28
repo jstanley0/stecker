@@ -1,1 +1,1 @@
-g++ stecker-engine.cpp -O3 -lpthread -o stecker-engine
+g++ stecker-engine.cpp -O2 -lpthread -o stecker-engine
