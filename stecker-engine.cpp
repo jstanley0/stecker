@@ -41,18 +41,12 @@ class GameState
   int run_length(char c, int row, int col, int dr, int dc) const
   {
     int length = 0;
-    while(cell(row, col) == c)
+    while(row >= 0 && row < rows && col >= 0 && col < cols && cell(row, col) == c)
     {
       if (++length == 3)
         break;
-
       row += dr;
-      if (row < 0 || row >= rows)
-        break;
-
       col += dc;
-      if (col < 0 || col >= cols)
-        break;
     }
     return length;
   }
